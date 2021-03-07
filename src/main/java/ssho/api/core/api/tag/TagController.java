@@ -3,6 +3,7 @@ package ssho.api.core.api.tag;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tagset.TagSet;
 import ssho.api.core.service.tag.TagServiceImpl;
 
 import java.io.IOException;
@@ -36,6 +37,26 @@ public class TagController {
     @GetMapping("")
     public List<Tag> getTagList() {
         return tagService.getTagList();
+    }
+
+    /**
+     * 태그셋 저장
+     * @param tagSet
+     * @throws IOException
+     */
+    @PostMapping("/set")
+    public void saveTagSet(@RequestBody TagSet tagSet) throws IOException {
+        tagService.saveTagSet(tagSet);
+    }
+
+    /**
+     * 태그셋 조회
+     * @param tagSet
+     * @throws IOException
+     */
+    @GetMapping("/set")
+    public void getTagSet(@RequestBody TagSet tagSet) throws IOException {
+        tagService.getTagSet(tagSet);
     }
 }
 

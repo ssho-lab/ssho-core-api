@@ -2,6 +2,8 @@ package ssho.api.core.service.tag;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -13,13 +15,13 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.springframework.stereotype.Service;
 import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tagset.TagSet;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 @Slf4j
 @Service
@@ -29,6 +31,7 @@ public class TagServiceImpl implements TagService {
     private final ObjectMapper objectMapper;
 
     private final String TAG_INDEX = "tag";
+    private final String TAG_SET_INDEX = "tag-set";
     private final Integer SEARCH_SIZE = 1000;
 
     public TagServiceImpl(final RestHighLevelClient restHighLevelClient,
@@ -120,6 +123,20 @@ public class TagServiceImpl implements TagService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    @Override
+    public void saveTagSet(TagSet tagSet) throws IOException {
+        IndexRequest indexRequest = new IndexRequest(TAG_SET_INDEX).source(objectMapper.writeValueAsString(tagSet), XContentType.JSON);
+        indexRequest.id(tagSet.getTagA() + "-" + tagSet.getTagB());
+        restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
+    }
+
+    @Override
+    public TagSet getTagSet(TagSet tagSet) throws IOException {
+        GetRequest getRequest = new GetRequest(TAG_SET_INDEX, tagSet.getTagA() + "-" + tagSet.getTagB() + "-");
+        GetResponse getResponse = restHighLevelClient.get(getRequest, RequestOptions.DEFAULT);
+        return objectMapper.readValue(getResponse.getSourceAsString(), TagSet.class);
     }
 
     private static String getUniqueId() {
