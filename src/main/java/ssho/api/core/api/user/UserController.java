@@ -5,9 +5,12 @@ import org.springframework.web.bind.annotation.*;
 import ssho.api.core.domain.user.model.User;
 import ssho.api.core.domain.user.model.req.SignInReq;
 import ssho.api.core.domain.user.model.req.SocialSignInReq;
+import ssho.api.core.domain.user.model.req.UserModificationReq;
 import ssho.api.core.domain.user.model.res.SignInRes;
 import ssho.api.core.service.user.UserServiceImpl;
+import ssho.api.core.util.auth.Auth;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 
 @Slf4j
@@ -48,6 +51,18 @@ public class UserController {
     @PostMapping("/signup")
     public void signup(@RequestBody User user) {
         userService.saveUser(user);
+    }
+
+    /**
+     * 회원 정보 수정
+     * @param userModificationReq
+     * @param httpServletRequest
+     */
+    @Auth
+    @PostMapping("/modification")
+    public void modifyUser(@RequestBody UserModificationReq userModificationReq, final HttpServletRequest httpServletRequest) {
+        int userId = Integer.parseInt(String.valueOf(httpServletRequest.getAttribute("userId")));
+        userService.updateUser(userId, userModificationReq);
     }
 
     /**

@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import ssho.api.core.domain.user.model.User;
 import ssho.api.core.domain.user.model.req.SignInReq;
 import ssho.api.core.domain.user.model.req.SocialSignInReq;
+import ssho.api.core.domain.user.model.req.UserModificationReq;
 import ssho.api.core.domain.user.model.res.SignInRes;
 import ssho.api.core.repository.user.UserRepository;
 import ssho.api.core.service.user.jwt.JwtService;
@@ -90,6 +91,24 @@ public class UserServiceImpl implements UserService {
         int userId = userRepository.save(user).getId();
 
         return new JwtService.TokenRes(jwtService.create(userId)).getToken();
+    }
+
+    @Override
+    public void updateUser(int userId, UserModificationReq userModificationReq) {
+
+        User user = userRepository.findById(userId).get();
+
+        if(userModificationReq.getName() != null) {
+            user.setName(userModificationReq.getName());
+        }
+        if(userModificationReq.getBirth() != null){
+            user.setBirth(userModificationReq.getBirth());
+        }
+        if(userModificationReq.getGender() != null) {
+            user.setGender(userModificationReq.getGender());
+        }
+
+        userRepository.save(user);
     }
 
     @Override
