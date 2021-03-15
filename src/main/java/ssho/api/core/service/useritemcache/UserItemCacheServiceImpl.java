@@ -411,11 +411,13 @@ public class UserItemCacheServiceImpl implements UserItemCacheService {
     }
 
     public UserItemCache getUserItemCacheByUserId(int userId) throws IOException {
+
         UserItemCache userItemCache = new UserItemCache();
 
         GetRequest getRequest = new GetRequest(USER_ITEM_CACHE_INDEX, String.valueOf(userId));
 
         boolean exist = restHighLevelClient.exists(getRequest, RequestOptions.DEFAULT);
+
         if(exist) {
             GetResponse getResponse = restHighLevelClient.get(getRequest, RequestOptions.DEFAULT);
             userItemCache = objectMapper.readValue(getResponse.getSourceAsString(), UserItemCache.class);

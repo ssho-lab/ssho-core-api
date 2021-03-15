@@ -31,13 +31,4 @@ public class CardDeckController {
         final String userId = String.valueOf(httpServletRequest.getAttribute("userId"));
         return cardDeckService.cardDeckByUserId(Integer.parseInt(userId));
     }
-
-    /**
-     * 튜토리얼 카드덱 조회
-     * @return
-     */
-    @GetMapping("/tutorial")
-    public CardDeck getTutorialCardDeck() {
-        return cardDeckService.tutorialCardDeck();
-    }
 }

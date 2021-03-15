@@ -13,7 +13,5 @@ public interface CardDeckService {
      * @return
      * @throws IOException
      */
-    CardDeck cardDeckByUserId(int userId) throws IOException;
-
-    CardDeck tutorialCardDeck();
+    CardDeck cardDeckByUserId(int userId);
 }

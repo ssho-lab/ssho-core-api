@@ -22,6 +22,7 @@ public class UserItemCacheController {
 
     /**
      * 회원 추천 상품 캐시 업데이트
+     *
      */
     @GetMapping("/update")
     public void updateUserItemCache() throws IOException {
@@ -30,6 +31,7 @@ public class UserItemCacheController {
 
     /**
      * 회원 추천 상품 캐시 조회
+     *
      */
     @GetMapping("")
     public List<UserItemCache> getAllUserItemCache() {
@@ -38,6 +40,10 @@ public class UserItemCacheController {
 
     /**
      * 회원 추천 상품 캐시 조회
+     *
+     * @param userId
+     * @return
+     * @throws IOException
      */
     @GetMapping("/{userId}")
     public UserItemCache getUserItemCacheByUserId(@PathVariable int userId) throws IOException {
