@@ -3,7 +3,6 @@ package ssho.api.core.domain.usercardset;
 import lombok.Data;
 
 import javax.persistence.*;
-import java.time.LocalDateTime;
 
 @Entity(name = "user_card_set")
 @Data

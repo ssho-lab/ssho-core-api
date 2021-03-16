@@ -7,13 +7,16 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import ssho.api.core.domain.carddeck.CardDeck;
 import ssho.api.core.domain.item.Item;
+import ssho.api.core.domain.mall.model.CategoryCode;
 import ssho.api.core.domain.mall.model.Mall;
 import ssho.api.core.domain.tag.model.Tag;
 import ssho.api.core.domain.tutoriallog.TutorialLog;
+import ssho.api.core.domain.usercardset.UserCardSet;
 import ssho.api.core.domain.useritemcache.model.UserItemCache;
 import ssho.api.core.service.item.ItemServiceImpl;
 import ssho.api.core.service.mall.MallServiceImpl;
 import ssho.api.core.service.tag.TagServiceImpl;
+import ssho.api.core.service.usercardset.UserCardSetServiceImpl;
 import ssho.api.core.service.useritemcache.UserItemCacheServiceImpl;
 
 import java.io.IOException;
@@ -25,10 +28,11 @@ import java.util.stream.Collectors;
 @Service
 public class CardDeckServiceImpl implements CardDeckService {
 
-    private final UserItemCacheServiceImpl userItemCacheService;
-    private final ItemServiceImpl itemService;
-    private final TagServiceImpl tagService;
-    private final MallServiceImpl mallService;
+    private  UserItemCacheServiceImpl userItemCacheService;
+    private  ItemServiceImpl itemService;
+    private  TagServiceImpl tagService;
+    private  MallServiceImpl mallService;
+    private UserCardSetServiceImpl userCardSetService;
 
     private WebClient webClient;
 
@@ -37,11 +41,12 @@ public class CardDeckServiceImpl implements CardDeckService {
 
     private final ExchangeStrategies exchangeStrategies = ExchangeStrategies.builder().codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(-1)).build();
 
-    public CardDeckServiceImpl(UserItemCacheServiceImpl userItemCacheService, ItemServiceImpl itemService, TagServiceImpl tagService, MallServiceImpl mallService) {
+    public CardDeckServiceImpl(UserItemCacheServiceImpl userItemCacheService, ItemServiceImpl itemService, TagServiceImpl tagService, MallServiceImpl mallService, UserCardSetServiceImpl userCardSetService) {
         this.userItemCacheService = userItemCacheService;
         this.itemService = itemService;
         this.tagService = tagService;
         this.mallService = mallService;
+        this.userCardSetService = userCardSetService;
     }
 
     @Override
@@ -56,12 +61,20 @@ public class CardDeckServiceImpl implements CardDeckService {
                return tutorialCardDeck(userId);
             }
 
+            UserCardSet userCardSet = userCardSetService.getRecentByUserId(userId);
+
             UserItemCache userItemCache = userItemCacheService.getUserItemCache(userId);
 
-            List<Item> userItemList = userItemCache.getItemIdList().stream().map(itemService::getItemById).collect(Collectors.toList());
+            List<Item> userItemList = userItemCache
+                                            .getItemIdList()
+                                            .stream()
+                                            .map(itemService::getItemById)
+                                            .collect(Collectors.toList());
+
+            List<Item> filteredItemList = filteredItemList(userCardSet, userItemList);
 
             CardDeck cardDeck = new CardDeck();
-            cardDeck.setItemList(userItemList);
+            cardDeck.setItemList(filteredItemList);
             cardDeck.setUserId(Integer.parseInt(userItemCache.getUserId()));
 
             return cardDeck;
@@ -141,5 +154,68 @@ public class CardDeckServiceImpl implements CardDeckService {
                         .retrieve()
                         .bodyToMono(Boolean.class)
                         .blockOptional().orElse(false);
+    }
+
+    private List<Item> filteredItemList(UserCardSet userCardSet, List<Item> itemList) {
+
+        String startPrice = userCardSet.getStartPrice();
+        String endPrice = userCardSet.getEndPrice();
+        String selectedCat = userCardSet.getSelectedCat();
+
+        List<Item> priceFiltered = itemList.stream().filter(item -> {
+            String priceStr = item.getPrice();
+            try {
+                int price = Integer.parseInt(priceStr);
+
+                if(price >= Integer.parseInt(startPrice) && price <= Integer.parseInt(endPrice)) {
+                   return true;
+                }
+                return false;
+
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }).collect(Collectors.toList());
+
+        List<String> categoryCodeList = new ArrayList<>();
+
+        for(int i = 0; i < selectedCat.length(); i++) {
+            if(selectedCat.charAt(i) == '1'){
+                categoryCodeList.add(mapCategoryCode(i).code);
+            }
+        }
+
+        return priceFiltered.stream().filter(item -> {
+            List<String> itemCategoryCodeList = item.getCategory().stream().map(category -> category.getCatCd().getCode()).collect(Collectors.toList());
+            for(String s: itemCategoryCodeList) {
+                if(categoryCodeList.contains(s)){
+                    return true;
+                }
+            }
+            return false;
+        }).collect(Collectors.toList());
+    }
+
+    private CategoryCode mapCategoryCode(int index) {
+        switch (index) {
+            case 0:
+                return CategoryCode.TOP;
+            case 1:
+                return CategoryCode.BOTTOM;
+            case 2:
+                return CategoryCode.SKIRT;
+            case 3:
+                return CategoryCode.OUTER;
+            case 4:
+                return CategoryCode.DRESS;
+            case 5:
+                return CategoryCode.SHOES;
+            case 6:
+                return CategoryCode.HAT;
+            case 7:
+                return CategoryCode.EXTRA;
+            default:
+                return null;
+        }
     }
 }
