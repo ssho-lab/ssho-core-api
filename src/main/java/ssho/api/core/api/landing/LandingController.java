@@ -17,10 +17,6 @@ public class LandingController {
         this.landingService = landingService;
     }
 
-    /**
-     * 회원별 쇼핑백 조회
-     * @return List<Item>
-     */
     @Auth
     @GetMapping("")
     public LandingRes getLanding(final HttpServletRequest httpServletRequest){

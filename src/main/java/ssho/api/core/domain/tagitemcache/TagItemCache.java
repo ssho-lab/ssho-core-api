@@ -1,4 +1,4 @@
-package ssho.api.core.domain.carddeck;
+package ssho.api.core.domain.tagitemcache;
 
 import lombok.Data;
 import ssho.api.core.domain.item.Item;
@@ -6,8 +6,7 @@ import ssho.api.core.domain.item.Item;
 import java.util.List;
 
 @Data
-public class CardDeck {
-    private int userId;
+public class TagItemCache {
+    private String tagId;
     private List<Item> itemList;
-    private boolean tutorial;
 }

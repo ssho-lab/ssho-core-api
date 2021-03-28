@@ -3,6 +3,7 @@ package ssho.api.core.service.carddeck;
 import ssho.api.core.domain.carddeck.CardDeck;
 
 import java.io.IOException;
+import java.util.List;
 
 public interface CardDeckService {
 
@@ -14,4 +15,8 @@ public interface CardDeckService {
      * @throws IOException
      */
     CardDeck cardDeckByUserId(int userId);
+
+    Boolean tutorialYn(int userId);
+
+    List<String> swipedTutorialItemIdList(int userId);
 }

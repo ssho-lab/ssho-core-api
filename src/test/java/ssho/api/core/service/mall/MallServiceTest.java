@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import ssho.api.core.domain.mall.model.Category;
 import ssho.api.core.domain.mall.model.CategoryCode;
 import ssho.api.core.domain.mall.model.Mall;
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tag.Tag;
 import ssho.api.core.service.tag.TagServiceImpl;
 
 import java.io.IOException;

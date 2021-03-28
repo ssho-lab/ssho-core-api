@@ -1,4 +1,4 @@
-package ssho.api.core.domain.useritemcache.model;
+package ssho.api.core.domain.useritemcache;
 
 import lombok.Data;
 import ssho.api.core.domain.mall.model.Mall;

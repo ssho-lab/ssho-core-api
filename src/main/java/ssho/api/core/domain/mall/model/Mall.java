@@ -1,7 +1,7 @@
 package ssho.api.core.domain.mall.model;
 
 import lombok.Data;
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tag.Tag;
 
 import java.util.List;
 

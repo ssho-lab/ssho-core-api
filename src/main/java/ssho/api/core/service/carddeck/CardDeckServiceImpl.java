@@ -1,6 +1,7 @@
 package ssho.api.core.service.carddeck;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.ExchangeStrategies;
@@ -9,18 +10,25 @@ import ssho.api.core.domain.carddeck.CardDeck;
 import ssho.api.core.domain.item.Item;
 import ssho.api.core.domain.mall.model.CategoryCode;
 import ssho.api.core.domain.mall.model.Mall;
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.stylegroup.StyleGroup;
+import ssho.api.core.domain.swipelog.model.SwipeLog;
+import ssho.api.core.domain.tag.Tag;
+import ssho.api.core.domain.tagitemcache.TagItemCache;
+import ssho.api.core.domain.tagset.TagSet;
 import ssho.api.core.domain.tutoriallog.TutorialLog;
 import ssho.api.core.domain.usercardset.UserCardSet;
-import ssho.api.core.domain.useritemcache.model.UserItemCache;
+import ssho.api.core.domain.useritemcache.UserItemCache;
 import ssho.api.core.service.item.ItemServiceImpl;
 import ssho.api.core.service.mall.MallServiceImpl;
+import ssho.api.core.service.stylegroup.StyleGroupServiceImpl;
 import ssho.api.core.service.tag.TagServiceImpl;
+import ssho.api.core.service.tagitemcache.TagItemCacheServiceImpl;
 import ssho.api.core.service.usercardset.UserCardSetServiceImpl;
 import ssho.api.core.service.useritemcache.UserItemCacheServiceImpl;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,11 +36,13 @@ import java.util.stream.Collectors;
 @Service
 public class CardDeckServiceImpl implements CardDeckService {
 
-    private  UserItemCacheServiceImpl userItemCacheService;
-    private  ItemServiceImpl itemService;
-    private  TagServiceImpl tagService;
-    private  MallServiceImpl mallService;
+    private UserItemCacheServiceImpl userItemCacheService;
+    private ItemServiceImpl itemService;
+    private TagServiceImpl tagService;
+    private MallServiceImpl mallService;
     private UserCardSetServiceImpl userCardSetService;
+    private StyleGroupServiceImpl styleGroupService;
+    private TagItemCacheServiceImpl tagItemCacheService;
 
     private WebClient webClient;
 
@@ -41,12 +51,15 @@ public class CardDeckServiceImpl implements CardDeckService {
 
     private final ExchangeStrategies exchangeStrategies = ExchangeStrategies.builder().codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(-1)).build();
 
-    public CardDeckServiceImpl(UserItemCacheServiceImpl userItemCacheService, ItemServiceImpl itemService, TagServiceImpl tagService, MallServiceImpl mallService, UserCardSetServiceImpl userCardSetService) {
+    public CardDeckServiceImpl(UserItemCacheServiceImpl userItemCacheService, ItemServiceImpl itemService, TagServiceImpl tagService,
+                               MallServiceImpl mallService, UserCardSetServiceImpl userCardSetService, @Lazy StyleGroupServiceImpl styleGroupService, TagItemCacheServiceImpl tagItemCacheService) {
         this.userItemCacheService = userItemCacheService;
         this.itemService = itemService;
         this.tagService = tagService;
         this.mallService = mallService;
         this.userCardSetService = userCardSetService;
+        this.styleGroupService = styleGroupService;
+        this.tagItemCacheService = tagItemCacheService;
     }
 
     @Override
@@ -57,25 +70,30 @@ public class CardDeckServiceImpl implements CardDeckService {
             boolean tutorialYn = tutorialYn(userId);
 
             // tutorial 미완료시
-            if(!tutorialYn) {
-               return tutorialCardDeck(userId);
+            if (!tutorialYn) {
+                CardDeck cardDeck = tutorialCardDeck(userId);
+                cardDeck.setTutorial(true);
+                return cardDeck;
             }
 
             UserCardSet userCardSet = userCardSetService.getRecentByUserId(userId);
 
-            UserItemCache userItemCache = userItemCacheService.getUserItemCache(userId);
+            StyleGroup styleGroup = styleGroupService.styleGroupByUserId(userId);
+            List<String> swipedItemIdList = swipedItemIdList(userId);
 
-            List<Item> userItemList = userItemCache
-                                            .getItemIdList()
-                                            .stream()
-                                            .map(itemService::getItemById)
-                                            .collect(Collectors.toList());
+            TagItemCache tagItemCache = tagItemCacheService.getTagItemCache(styleGroup.getTagId());
+
+            List<Item> userItemList = tagItemCache.getItemList()
+                                                    .stream()
+                                                    .filter(item -> !swipedItemIdList.contains(item.getId()))
+                                                    .collect(Collectors.toList());
 
             List<Item> filteredItemList = filteredItemList(userCardSet, userItemList);
 
             CardDeck cardDeck = new CardDeck();
             cardDeck.setItemList(filteredItemList);
-            cardDeck.setUserId(Integer.parseInt(userItemCache.getUserId()));
+            cardDeck.setUserId(userId);
+            cardDeck.setTutorial(false);
 
             return cardDeck;
 
@@ -91,20 +109,66 @@ public class CardDeckServiceImpl implements CardDeckService {
         }
     }
 
+    @Override
+    public Boolean tutorialYn(int userId) {
+
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
+
+        return webClient
+                .get()
+                .uri("/log/tutorial/yn?userId=" + userId)
+                .retrieve()
+                .bodyToMono(Boolean.class)
+                .blockOptional().orElse(false);
+    }
+
+    @Override
+    public List<String> swipedTutorialItemIdList(int userId) {
+
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
+
+        return webClient
+                .get()
+                .uri("/log/tutorial?userId=" + userId)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<TutorialLog>>() {
+                })
+                .block()
+                .stream()
+                .map(TutorialLog::getItemId)
+                .collect(Collectors.toList());
+    }
+
+    private List<String> swipedItemIdList(int userId) {
+
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
+
+        return webClient
+                .get()
+                .uri("/log/swipe/user?userId=" + userId)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<SwipeLog>>() {
+                })
+                .block()
+                .stream()
+                .map(SwipeLog::getItemId)
+                .collect(Collectors.toList());
+    }
+
     private CardDeck tutorialCardDeck(int userId) {
 
         CardDeck cardDeck = new CardDeck();
 
-        List<String> swipedItemIdList = swipedItemIdList(userId);
+        List<String> swipedItemIdList = swipedTutorialItemIdList(userId);
         List<String> tagIdList = tagService.getTagList().stream().map(Tag::getId).collect(Collectors.toList());
         List<Item> cardDeckItemList = new ArrayList<>();
 
         tagIdList.forEach(tagId -> {
 
             List<Mall> mallList = mallService.getMallList()
-                                                    .stream()
-                                                    .filter(mall -> mall.getTagList().stream().anyMatch(tag -> tag.getId().equals(tagId)))
-                                                    .collect(Collectors.toList());
+                    .stream()
+                    .filter(mall -> mall.getTagList().stream().anyMatch(tag -> tag.getId().equals(tagId)))
+                    .collect(Collectors.toList());
 
             List<Item> itemList = mallList.stream().map(mall -> {
                 try {
@@ -118,7 +182,7 @@ public class CardDeckServiceImpl implements CardDeckService {
                     .collect(Collectors.toList());
 
             if (itemList.size() > 0) {
-                cardDeckItemList.add(itemList.get((int)(Math.random() * itemList.size())));
+                cardDeckItemList.add(itemList.get((int) (Math.random() * itemList.size())));
             }
         });
 
@@ -126,34 +190,6 @@ public class CardDeckServiceImpl implements CardDeckService {
         cardDeck.setItemList(cardDeckItemList);
 
         return cardDeck;
-    }
-
-    private List<String> swipedItemIdList(int userId) {
-
-        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
-
-        return webClient
-                        .get()
-                        .uri("/log/tutorial?userId=" + userId)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<List<TutorialLog>>() {
-                        })
-                        .block()
-                        .stream()
-                        .map(TutorialLog::getItemId)
-                        .collect(Collectors.toList());
-    }
-
-    private Boolean tutorialYn(int userId) {
-
-        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
-
-        return webClient
-                        .get()
-                        .uri("/log/tutorial/yn?userId=" + userId)
-                        .retrieve()
-                        .bodyToMono(Boolean.class)
-                        .blockOptional().orElse(false);
     }
 
     private List<Item> filteredItemList(UserCardSet userCardSet, List<Item> itemList) {
@@ -167,8 +203,8 @@ public class CardDeckServiceImpl implements CardDeckService {
             try {
                 int price = Integer.parseInt(priceStr);
 
-                if(price >= Integer.parseInt(startPrice) && price <= Integer.parseInt(endPrice)) {
-                   return true;
+                if (price >= Integer.parseInt(startPrice) && price <= Integer.parseInt(endPrice)) {
+                    return true;
                 }
                 return false;
 
@@ -179,16 +215,16 @@ public class CardDeckServiceImpl implements CardDeckService {
 
         List<String> categoryCodeList = new ArrayList<>();
 
-        for(int i = 0; i < selectedCat.length(); i++) {
-            if(selectedCat.charAt(i) == '1'){
+        for (int i = 0; i < selectedCat.length(); i++) {
+            if (selectedCat.charAt(i) == '1') {
                 categoryCodeList.add(mapCategoryCode(i).code);
             }
         }
 
         return priceFiltered.stream().filter(item -> {
             List<String> itemCategoryCodeList = item.getCategory().stream().map(category -> category.getCatCd().getCode()).collect(Collectors.toList());
-            for(String s: itemCategoryCodeList) {
-                if(categoryCodeList.contains(s)){
+            for (String s : itemCategoryCodeList) {
+                if (categoryCodeList.contains(s)) {
                     return true;
                 }
             }

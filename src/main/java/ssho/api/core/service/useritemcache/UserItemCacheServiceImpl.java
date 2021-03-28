@@ -26,11 +26,11 @@ import ssho.api.core.domain.mall.model.Mall;
 import ssho.api.core.domain.swipelog.model.SwipeLog;
 import ssho.api.core.domain.swipelog.model.res.UserSwipeLogRes;
 import ssho.api.core.domain.user.model.User;
-import ssho.api.core.domain.useritemcache.model.UserItem;
-import ssho.api.core.domain.useritemcache.model.UserMall;
-import ssho.api.core.domain.useritemcache.model.req.UserItemCacheReq;
-import ssho.api.core.domain.useritemcache.model.UserItemCache;
-import ssho.api.core.domain.useritemcache.model.UserItemSimilarity;
+import ssho.api.core.domain.useritemcache.UserItem;
+import ssho.api.core.domain.useritemcache.UserMall;
+import ssho.api.core.domain.useritemcache.req.UserItemCacheReq;
+import ssho.api.core.domain.useritemcache.UserItemCache;
+import ssho.api.core.domain.useritemcache.UserItemSimilarity;
 import ssho.api.core.domain.userswipe.model.UserSwipeScore;
 import ssho.api.core.repository.user.UserRepository;
 import ssho.api.core.service.item.ItemServiceImpl;
@@ -59,7 +59,8 @@ public class UserItemCacheServiceImpl implements UserItemCacheService {
     @Value("${log.api.host}")
     private String LOG_API_HOST;
 
-    private String USER_ITEM_CACHE_INDEX = "cache-useritem";
+    private String USER_ITEM_CACHE_INDEX = "cache-useritem-test-20210323";
+    private String USER_MALL_CACHE_INDEX = "cache-useritem";
 
     private final ExchangeStrategies exchangeStrategies = ExchangeStrategies.builder().codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(-1)).build();
 
@@ -74,9 +75,330 @@ public class UserItemCacheServiceImpl implements UserItemCacheService {
     }
 
     @Override
-    public void updateUserItemCache() throws IOException {
+    public void updateUserItemCacheV2() {
+        UserItemCacheReq userItemCacheReq = getUserItemCacheReq();
 
-        UserItemCacheReq userItemCacheReq = getUserItemList();
+        this.webClient = WebClient.builder().baseUrl(ITEM_RECO_API_HOST).exchangeStrategies(exchangeStrategies).build();
+
+        // 회원 추천 상품 캐시 생성
+        List<UserItemCache> userItemCacheList =
+                webClient
+                        .post()
+                        .uri("/reco/mf/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .bodyValue(userItemCacheReq)
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<List<UserItemCache>>() {
+                        })
+                        .block()
+                        .stream()
+                        .sorted((a, b) -> {
+                            if (Integer.parseInt(a.getUserId()) >= Integer.parseInt(b.getUserId())) return 1;
+                            return -1;
+                        }).collect(Collectors.toList());
+
+        userItemCacheList.forEach(userItemCache -> {
+            try {
+                save(userItemCache, USER_ITEM_CACHE_INDEX);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    @Override
+    public UserItemCache getUserItemCache(int userId) throws IOException {
+
+        // 추천 상품 캐시 조회
+        UserItemCache userItemCache = getUserItemCacheByUserId(userId);
+
+        // 스와이프한 상품 고유 번호 리스트 조회
+        List<String> swipedItemIdList = swipeLogList(userItemCache.getUserId()).stream().map(SwipeLog::getItemId).collect(Collectors.toList());
+
+        if (swipedItemIdList.size() > 0) {
+            // 스와이프한 상품 필터링
+            // 20개 상품
+            List<String> filteredItemIdList =
+                    userItemCache.getUserItemList()
+                            .stream()
+                            .map(UserItem::getItem)
+                            .map(Item::getId)
+                            .filter(itemId -> !swipedItemIdList.contains(itemId))
+                            .collect(Collectors.toList())
+                            .subList(0, 20);
+
+            userItemCache.setItemIdList(filteredItemIdList);
+        }
+
+        userItemCache.setItemIdList(userItemCache.getItemIdList().subList(0, 20));
+
+        return userItemCache;
+    }
+
+    @Override
+    public List<SwipeLog> swipeLogList(String userId) {
+
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
+
+        return webClient
+                .get()
+                .uri("/log/swipe/user?userId=" + userId)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<SwipeLog>>() {
+                })
+                .block();
+    }
+
+    public UserItemCacheReq getUserItemCacheReq() {
+
+        List<Item> itemList = itemService.getItems().stream().map(item -> {
+            Item postItem = new Item();
+            postItem.setId(item.getId());
+            return postItem;
+        }).collect(Collectors.toList());
+
+        List<UserSwipeLogRes> userSwipeLogResList = swipeLogs();
+
+        List<UserSwipeScore> userSwipeScoreList =
+                userSwipeLogResList.stream().map(userSwipeLogRes -> {
+                    UserSwipeScore userSwipeScore = new UserSwipeScore();
+                    userSwipeScore.setUserId(userSwipeLogRes.getUserId());
+                    double[] score = new double[itemList.size()];
+
+                    if (userSwipeLogRes.getSwipeLogList() == null) {
+                        userSwipeScore.setScoreList(score);
+                    } else {
+                        List<SwipeLog> swipeLogList = userSwipeLogRes.getSwipeLogList();
+                        List<String> swipedItemIdList = swipeLogList.stream().map(SwipeLog::getItemId).collect(Collectors.toList());
+                        for (int i = 0; i < itemList.size(); i++) {
+                            if (itemList.get(i) == null || itemList.get(i).getId() == null) {
+                                continue;
+                            }
+                            if (swipedItemIdList.contains(itemList.get(i).getId())) {
+                                score[i] = 1.0;
+                            }
+                        }
+                        userSwipeScore.setScoreList(score);
+                    }
+                    return userSwipeScore;
+                }).collect(Collectors.toList());
+
+        UserItemCacheReq userItemCacheReq = new UserItemCacheReq();
+        userItemCacheReq.setItemList(itemList);
+        userItemCacheReq.setUserSwipeScoreList(userSwipeScoreList);
+
+        return userItemCacheReq;
+
+
+//        List<Mall> mallList = mallService.getMallList().stream().filter(mall -> mall.getLastSyncTime() != null).collect(Collectors.toList());
+//
+//        // 회원 전체 스와이프 로그 조회
+//        List<UserSwipeLogRes> userSwipeList = swipeLogs();
+//
+//        UserItemCacheReq userItemReq = new UserItemCacheReq();
+//        List<UserSwipeScore> userSwipeScoreList = new ArrayList<>();
+//
+//        userSwipeList
+//                .forEach(userSwipe -> {
+//                    UserSwipeScore userSwipeScore = new UserSwipeScore();
+//                    userSwipeScore.setUserId(userSwipe.getUserId());
+//
+//                    double[] scoreList = new double[mallList.size()];
+//
+//                    if (userSwipe.getSwipeLogList() != null) {
+//
+//                        List<SwipeLog> swipeLogList = userSwipe.getSwipeLogList();
+//
+//                        for (int i = 0; i < mallList.size(); i++) {
+//
+//                            double score = 0.0;
+//                            int swipeLogSize = 0;
+//
+//                            Mall mall = mallList.get(i);
+//
+//                            for (SwipeLog swipeLog : swipeLogList) {
+//
+//                                String itemId = swipeLog.getItemId();
+//
+//                                try {
+//                                    if (itemService.getItemById(itemId, "item" + "-" + mall.getId() + "-" + "cum") != null) {
+//                                        Item item = itemService.getItemById(itemId, "item" + "-" + mall.getId() + "-" + "cum");
+//
+//                                        if (item.equals(new Item())) {
+//                                            continue;
+//                                        }
+//
+//                                        String swipeMallNo = item.getMallNo();
+//
+//                                        if (swipeMallNo.equals(mall.getId())) {
+//                                            if(swipeLog.getScore() == 1){
+//                                                score = score + swipeLog.getScore();
+//                                            }
+//                                            swipeLogSize++;
+//                                        }
+//                                    }
+//                                } catch (IOException e) {
+//                                    e.printStackTrace();
+//                                }
+//                            }
+//                            scoreList[i] = score != 0 && swipeLogSize != 0 ? score / swipeLogSize : 0.0;
+//                        }
+//                    }
+//                    userSwipeScore.setScoreList(scoreList);
+//                    userSwipeScoreList.add(userSwipeScore);
+//                });
+//
+//        userItemReq.setMallList(mallList);
+//        userItemReq.setUserSwipeScoreList(userSwipeScoreList);
+//
+//        return userItemReq;
+    }
+
+    public List<UserItemCache> getAllUserCache() {
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices(USER_MALL_CACHE_INDEX);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+        searchSourceBuilder.size(10000);
+        searchRequest.source(searchSourceBuilder);
+
+        try {
+            SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+
+            return Stream.of(searchResponse.getHits().getHits())
+                    .map(SearchHit::getSourceAsString)
+                    .map(src -> {
+                        try {
+                            return objectMapper.readValue(src, UserItemCache.class);
+                        } catch (IOException e) {
+                            return null;
+                        }
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private List<UserSwipeLogRes> swipeLogs() {
+
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
+
+        List<User> userList = userRepository.findAll();
+
+        return webClient
+                .post()
+                .uri("/log/swipe/user/grouped")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .bodyValue(userList)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<List<UserSwipeLogRes>>() {
+                })
+                .block();
+    }
+
+    private void delete(String index) {
+        try {
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(index);
+            restHighLevelClient.indices().delete(deleteIndexRequest, RequestOptions.DEFAULT);
+        } catch (ElasticsearchStatusException | IOException e) {
+        }
+    }
+
+    private void save(UserItemCache cache, String index) throws IOException {
+
+        IndexRequest indexRequest =
+                new IndexRequest(index)
+                        .id(cache.getUserId())
+                        .source(objectMapper.writeValueAsString(cache), XContentType.JSON);
+
+        restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
+    }
+
+    public UserItemCache getUserItemCacheByUserId(int userId) throws IOException {
+
+        UserItemCache userItemCache = new UserItemCache();
+
+        GetRequest getRequest = new GetRequest(USER_ITEM_CACHE_INDEX, String.valueOf(userId));
+
+        boolean exist = restHighLevelClient.exists(getRequest, RequestOptions.DEFAULT);
+
+        if (exist) {
+            GetResponse getResponse = restHighLevelClient.get(getRequest, RequestOptions.DEFAULT);
+            userItemCache = objectMapper.readValue(getResponse.getSourceAsString(), UserItemCache.class);
+
+            List<String> swipedItemIdList = swipeLogList(userItemCache.getUserId()).stream().map(SwipeLog::getItemId).collect(Collectors.toList());
+
+            if (swipedItemIdList.size() > 0) {
+                List<UserItem> filteredUserItemList = userItemCache.getUserItemList().stream().filter(userItem -> !swipedItemIdList.contains(userItem.getItem().getId())).collect(Collectors.toList());
+                userItemCache.setUserItemList(filteredUserItemList);
+
+                List<String> filteredItemIdList = userItemCache.getItemIdList().stream().filter(itemId -> !swipedItemIdList.contains(itemId)).collect(Collectors.toList());
+                userItemCache.setItemIdList(filteredItemIdList);
+            }
+        }
+
+        userItemCache.setId(userId);
+        return userItemCache;
+    }
+
+    private Double normalize(Double e, List<Double> list) {
+        Double max = Collections.max(list);
+        Double min = Collections.min(list);
+
+        if (max - min == 0.0) {
+            return 0.0;
+        }
+
+        return (e - min) / (max - min);
+    }
+
+    public List<Item> recentItemList(int userId) {
+        List<Item> itemList = new ArrayList<>();
+
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
+        List<SwipeLog> swipeLogList =
+                webClient
+                        .get()
+                        .uri("/log/swipe/user/like/recent?userId=" + userId)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<List<SwipeLog>>() {
+                        })
+                        .block();
+
+        if (swipeLogList.size() == 0) {
+            return itemList;
+        }
+
+        if (swipeLogList.size() > 5) {
+            swipeLogList = swipeLogList.subList(0, 5);
+        }
+
+        return swipeLogList
+                .stream()
+                .map(swipeLog -> itemService.getItemById(swipeLog.getItemId()))
+                .collect(Collectors.toList());
+    }
+
+    public Map<String, List<Item>> mallItemListMap() throws IOException {
+        Map<String, List<Item>> mallItemListMap = new HashMap<>();
+
+        List<Mall> mallList = mallService.getMallList().stream().filter(mall -> mall.getLastSyncTime() != null).collect(Collectors.toList());
+        for (Mall mall : mallList) {
+            mallItemListMap.put(mall.getId(), itemService.getItemsByMallNo(mall.getId()));
+        }
+        return mallItemListMap;
+    }
+
+    @Override
+    public void updateUserItemCacheV1() throws IOException {
+
+        UserItemCacheReq userItemCacheReq = getUserItemCacheReq();
 
         this.webClient = WebClient.builder().baseUrl(ITEM_RECO_API_HOST).exchangeStrategies(exchangeStrategies).build();
 
@@ -226,263 +548,10 @@ public class UserItemCacheServiceImpl implements UserItemCacheService {
             }
         });
 
-        delete(USER_ITEM_CACHE_INDEX);
+        delete(USER_MALL_CACHE_INDEX);
 
         for (UserItemCache userItemCache : userItemCacheList) {
-            save(userItemCache, USER_ITEM_CACHE_INDEX);
+            save(userItemCache, USER_MALL_CACHE_INDEX);
         }
-    }
-
-    @Override
-    public UserItemCache getUserItemCache(int userId) throws IOException {
-
-        // 추천 상품 캐시 조회
-        UserItemCache userItemCache = getUserItemCacheByUserId(userId);
-
-        // 스와이프한 상품 고유 번호 리스트 조회
-        List<String> swipedItemIdList = swipedItemIdList(userItemCache.getUserId());
-
-        if (swipedItemIdList.size() > 0) {
-            // 스와이프한 상품 필터링
-            // 20개 상품
-            List<String> filteredItemIdList =
-                    userItemCache.getUserItemList()
-                            .stream()
-                            .map(UserItem::getItem)
-                            .map(Item::getId)
-                            .filter(itemId -> !swipedItemIdList.contains(itemId))
-                            .collect(Collectors.toList())
-                            .subList(0, 20);
-
-            userItemCache.setItemIdList(filteredItemIdList);
-        }
-
-        userItemCache.setItemIdList(userItemCache.getItemIdList().subList(0, 20));
-
-        return userItemCache;
-    }
-
-    private List<String> swipedItemIdList(String userId) {
-
-        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
-
-        List<String> swipedItemIdList =
-                webClient
-                        .get()
-                        .uri("/log/swipe/user?userId=" + userId)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<List<SwipeLog>>() {
-                        })
-                        .block()
-                        .stream()
-                        .map(SwipeLog::getItemId)
-                        .collect(Collectors.toList());
-        return swipedItemIdList;
-    }
-
-    private UserItemCacheReq getUserItemList() {
-
-        List<Mall> mallList = mallService.getMallList().stream().filter(mall -> mall.getLastSyncTime() != null).collect(Collectors.toList());
-
-        // 회원 전체 스와이프 로그 조회
-        List<UserSwipeLogRes> userSwipeList = swipeLogs();
-
-        UserItemCacheReq userItemReq = new UserItemCacheReq();
-        List<UserSwipeScore> userSwipeScoreList = new ArrayList<>();
-
-        userSwipeList
-                .forEach(userSwipe -> {
-                    UserSwipeScore userSwipeScore = new UserSwipeScore();
-                    userSwipeScore.setUserId(userSwipe.getUserId());
-
-                    double[] scoreList = new double[mallList.size()];
-
-                    if (userSwipe.getSwipeLogList() != null) {
-
-                        List<SwipeLog> swipeLogList = userSwipe.getSwipeLogList();
-
-                        for (int i = 0; i < mallList.size(); i++) {
-
-                            double score = 0.0;
-                            int swipeLogSize = 0;
-
-                            Mall mall = mallList.get(i);
-
-                            for (SwipeLog swipeLog : swipeLogList) {
-
-                                String itemId = swipeLog.getItemId();
-
-                                try {
-                                    if (itemService.getItemById(itemId, "item" + "-" + mall.getId() + "-" + "cum") != null) {
-                                        Item item = itemService.getItemById(itemId, "item" + "-" + mall.getId() + "-" + "cum");
-
-                                        if (item.equals(new Item())) {
-                                            continue;
-                                        }
-
-                                        String swipeMallNo = item.getMallNo();
-
-                                        if (swipeMallNo.equals(mall.getId())) {
-                                            if(swipeLog.getScore() == 1){
-                                                score = score + swipeLog.getScore();
-                                            }
-                                            swipeLogSize++;
-                                        }
-                                    }
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                            scoreList[i] = score != 0 && swipeLogSize != 0 ? score / swipeLogSize : 0.0;
-                        }
-                    }
-                    userSwipeScore.setScoreList(scoreList);
-                    userSwipeScoreList.add(userSwipeScore);
-                });
-
-        userItemReq.setMallList(mallList);
-        userItemReq.setUserSwipeScoreList(userSwipeScoreList);
-
-        return userItemReq;
-    }
-
-    public List<UserItemCache> getAllUserCache() {
-
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.indices(USER_ITEM_CACHE_INDEX);
-
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
-        searchSourceBuilder.size(10000);
-        searchRequest.source(searchSourceBuilder);
-
-        try {
-            SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
-
-            return Stream.of(searchResponse.getHits().getHits())
-                    .map(SearchHit::getSourceAsString)
-                    .map(src -> {
-                        try {
-                            return objectMapper.readValue(src, UserItemCache.class);
-                        } catch (IOException e) {
-                            return null;
-                        }
-                    })
-                    .collect(Collectors.toList());
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    private List<UserSwipeLogRes> swipeLogs() {
-
-        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
-
-        List<User> userList = userRepository.findAll();
-
-        return webClient
-                .post()
-                .uri("/log/swipe/user/grouped")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .bodyValue(userList)
-                .retrieve()
-                .bodyToMono(new ParameterizedTypeReference<List<UserSwipeLogRes>>() {
-                })
-                .block();
-    }
-
-    private void delete(String index) {
-        try {
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(index);
-            restHighLevelClient.indices().delete(deleteIndexRequest, RequestOptions.DEFAULT);
-        } catch (ElasticsearchStatusException | IOException e) {
-        }
-    }
-
-    private void save(UserItemCache cache, String index) throws IOException {
-
-        IndexRequest indexRequest =
-                new IndexRequest(index)
-                        .id(cache.getUserId())
-                        .source(objectMapper.writeValueAsString(cache), XContentType.JSON);
-
-        restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
-    }
-
-    public UserItemCache getUserItemCacheByUserId(int userId) throws IOException {
-
-        UserItemCache userItemCache = new UserItemCache();
-
-        GetRequest getRequest = new GetRequest(USER_ITEM_CACHE_INDEX, String.valueOf(userId));
-
-        boolean exist = restHighLevelClient.exists(getRequest, RequestOptions.DEFAULT);
-
-        if(exist) {
-            GetResponse getResponse = restHighLevelClient.get(getRequest, RequestOptions.DEFAULT);
-            userItemCache = objectMapper.readValue(getResponse.getSourceAsString(), UserItemCache.class);
-
-            List<String> swipedItemIdList = swipedItemIdList(userItemCache.getUserId());
-
-            if(swipedItemIdList.size() > 0) {
-                List<UserItem> filteredUserItemList = userItemCache.getUserItemList().stream().filter(userItem -> !swipedItemIdList.contains(userItem.getItem().getId())).collect(Collectors.toList());
-                userItemCache.setUserItemList(filteredUserItemList);
-
-                List<String> filteredItemIdList = userItemCache.getItemIdList().stream().filter(itemId -> !swipedItemIdList.contains(itemId)).collect(Collectors.toList());
-                userItemCache.setItemIdList(filteredItemIdList);
-            }
-        }
-
-        userItemCache.setId(userId);
-        return userItemCache;
-    }
-
-    private Double normalize(Double e, List<Double> list) {
-        Double max = Collections.max(list);
-        Double min = Collections.min(list);
-
-        if (max - min == 0.0) {
-            return 0.0;
-        }
-
-        return (e - min) / (max - min);
-    }
-
-    public List<Item> recentItemList(int userId) {
-        List<Item> itemList = new ArrayList<>();
-
-        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).exchangeStrategies(exchangeStrategies).build();
-        List<SwipeLog> swipeLogList =
-                webClient
-                        .get()
-                        .uri("/log/swipe/user/like/recent?userId=" + userId)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<List<SwipeLog>>() {
-                        })
-                        .block();
-
-        if (swipeLogList.size() == 0) {
-            return itemList;
-        }
-
-        if (swipeLogList.size() > 5) {
-            swipeLogList = swipeLogList.subList(0, 5);
-        }
-
-        return swipeLogList
-                .stream()
-                .map(swipeLog -> itemService.getItemById(swipeLog.getItemId()))
-                .collect(Collectors.toList());
-    }
-
-    public Map<String, List<Item>> mallItemListMap() throws IOException {
-        Map<String, List<Item>> mallItemListMap = new HashMap<>();
-
-        List<Mall> mallList = mallService.getMallList().stream().filter(mall -> mall.getLastSyncTime() != null).collect(Collectors.toList());
-        for (Mall mall : mallList) {
-            mallItemListMap.put(mall.getId(), itemService.getItemsByMallNo(mall.getId()));
-        }
-        return mallItemListMap;
     }
 }

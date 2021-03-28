@@ -1,6 +1,6 @@
 package ssho.api.core.service.tag;
 
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tag.Tag;
 import ssho.api.core.domain.tagset.TagSet;
 
 import java.io.IOException;
@@ -11,8 +11,12 @@ public interface TagService {
     void save(List<Tag> tagList) throws IOException;
 
     List<Tag> getTagList();
+    Tag getTagById(String tagId) throws IOException;
     Tag getTagByName(String tagName);
 
     void saveTagSet(TagSet tagSet) throws IOException;
     TagSet getTagSet(TagSet tagSet) throws IOException;
+    List<TagSet> getTagSetListById(String tagId) throws IOException;
+    List<TagSet> getTagSetList();
+    void updateRepVec();
 }

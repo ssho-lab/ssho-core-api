@@ -1,7 +1,7 @@
 package ssho.api.core.domain.swipelog.model;
 
 import lombok.Data;
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tag.Tag;
 import java.util.List;
 
 /**

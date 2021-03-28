@@ -22,7 +22,7 @@ import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
 import ssho.api.core.domain.item.Item;
 import ssho.api.core.domain.mall.model.Mall;
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tag.Tag;
 import ssho.api.core.service.mall.MallServiceImpl;
 
 import java.io.IOException;
@@ -186,6 +186,56 @@ public class ItemServiceImpl implements ItemService{
     }
 
     @Override
+    public List<Item> getItemsCum(){
+
+        // syncTime이 null이 아닌 mallList 조회
+        List<Mall> mallList = mallService.getMallList().stream().filter(mall ->
+                mall.getLastSyncTime() != null).collect(Collectors.toList());
+
+        List<Item> itemList = new ArrayList<>();
+
+        for(Mall mall : mallList) {
+
+            String index = "item" + "-" + mall.getId() + "-" + "cum";
+
+            // ES에 요청 보내기
+            SearchRequest searchRequest = new SearchRequest(index);
+
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+
+            // search query 최대 크기 set
+            sourceBuilder.size(SIZE);
+
+            searchRequest.source(sourceBuilder);
+
+            // ES로 부터 데이터 받기
+            SearchResponse searchResponse;
+
+            try {
+                searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
+            } catch (Exception e) {
+                continue;
+            }
+
+            SearchHit[] searchHits = searchResponse.getHits().getHits();
+
+            List<Item> mallItemList = Arrays.stream(searchHits).map(hit -> {
+                try {
+                    return new ObjectMapper()
+                            .readValue(hit.getSourceAsString(), Item.class);
+                } catch (JsonProcessingException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }).collect(Collectors.toList());
+
+            itemList.addAll(mallItemList);
+        }
+
+        return itemList;
+    }
+
+    @Override
     public Item getItemById(String itemId) {
 
         List<Mall> mallList = mallService.getMallList().stream().filter(mall ->
@@ -286,5 +336,22 @@ public class ItemServiceImpl implements ItemService{
         } else {
             return null;
         }
+    }
+
+    public Item simplify(Item item) {
+        item.setCategory(null);
+        item.setMallNm(null);
+        item.setMallNo(null);
+        item.setTitle(null);
+        item.setEngTitle(null);
+        item.setImageUrl(null);
+        item.setLink(null);
+        item.setProductExtra(null);
+        item.setTagList(null);
+        item.setSyncTime(null);
+        item.setPrice(null);
+        item.setDiscPrice(null);
+        item.setImageVec(null);
+        return item;
     }
 }

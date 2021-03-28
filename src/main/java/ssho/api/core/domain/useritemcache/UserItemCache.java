@@ -1,4 +1,4 @@
-package ssho.api.core.domain.useritemcache.model;
+package ssho.api.core.domain.useritemcache;
 
 import lombok.*;
 import org.springframework.data.redis.core.RedisHash;

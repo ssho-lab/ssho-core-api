@@ -2,7 +2,7 @@ package ssho.api.core.api.tag;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-import ssho.api.core.domain.tag.model.Tag;
+import ssho.api.core.domain.tag.Tag;
 import ssho.api.core.domain.tagset.TagSet;
 import ssho.api.core.service.tag.TagServiceImpl;
 

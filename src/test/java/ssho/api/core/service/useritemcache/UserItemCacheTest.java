@@ -16,7 +16,7 @@ public class UserItemCacheTest {
 
     @Test
     void updateUserItemCache() throws IOException {
-        userItemCacheService.updateUserItemCache();
+        //userItemCacheServicegroup .updateUserItemCache();
     }
 
     @Test

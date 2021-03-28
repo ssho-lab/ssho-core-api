@@ -6,7 +6,7 @@ import ssho.api.core.domain.tag.Tag;
 import java.util.List;
 
 @Data
-public class LandingRes {
-    private List<Tag> recoTagList;
-    private List<Tag> trendingTagList;
+public class LandingDetailRes {
+    private Tag tag;
+    private List<Tag> relatedTagList;
 }
