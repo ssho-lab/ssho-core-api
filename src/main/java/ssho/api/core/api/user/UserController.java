@@ -11,7 +11,6 @@ import ssho.api.core.service.user.UserServiceImpl;
 import ssho.api.core.util.auth.Auth;
 
 import javax.servlet.http.HttpServletRequest;
-import java.util.List;
 
 @Slf4j
 @RequestMapping("/users")
@@ -26,6 +25,7 @@ public class UserController {
 
     /**
      * 로그인
+     *
      * @param signInReq
      * @return
      */
@@ -36,6 +36,7 @@ public class UserController {
 
     /**
      * 로그인(소셜)
+     *
      * @param signInReq
      * @return
      */
@@ -46,6 +47,7 @@ public class UserController {
 
     /**
      * 회원 등록
+     *
      * @param user
      */
     @PostMapping("/signup")
@@ -55,6 +57,7 @@ public class UserController {
 
     /**
      * 회원 정보 수정
+     *
      * @param userModificationReq
      * @param httpServletRequest
      */
@@ -67,20 +70,25 @@ public class UserController {
 
     /**
      * 이메일 중복 체크
+     *
      * @param email
      * @return
      */
     @GetMapping("/check")
-    public boolean checkEmailRegistered(@RequestParam("email") String email){
+    public boolean checkEmailRegistered(@RequestParam("email") String email) {
         return userService.checkEmailRegistered(email);
     }
 
     /**
-     * 회원 전체 조회
+     * 회원 정보 조회
+     *
+     * @param httpServletRequest
      * @return
      */
-    @GetMapping("")
-    public List<User> getUsers() {
-        return userService.userList();
+    @Auth
+    @GetMapping("/info")
+    public User info(final HttpServletRequest httpServletRequest) {
+        int userId = Integer.parseInt(String.valueOf(httpServletRequest.getAttribute("userId")));
+        return userService.getUserById(userId);
     }
 }

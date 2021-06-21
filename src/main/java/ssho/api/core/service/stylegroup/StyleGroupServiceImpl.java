@@ -13,7 +13,7 @@ import ssho.api.core.repository.stylegroup.StyleGroupRepository;
 import ssho.api.core.service.carddeck.CardDeckServiceImpl;
 import ssho.api.core.service.item.ItemServiceImpl;
 import ssho.api.core.service.tag.TagServiceImpl;
-import ssho.api.core.service.user.UserServiceImpl;
+import ssho.api.core.service.user.UserAdminService;
 import ssho.api.core.service.useritemcache.UserItemCacheServiceImpl;
 
 import java.util.Collections;
@@ -25,16 +25,16 @@ import java.util.stream.Collectors;
 public class StyleGroupServiceImpl implements StyleGroupService {
 
     private StyleGroupRepository styleGroupRepository;
-    private UserServiceImpl userService;
+    private UserAdminService userAdminService;
     private CardDeckServiceImpl cardDeckService;
     private ItemServiceImpl itemService;
     private UserItemCacheServiceImpl userItemCacheService;
     private TagServiceImpl tagService;
 
-    public StyleGroupServiceImpl(StyleGroupRepository styleGroupRepository, UserServiceImpl userService, @Lazy CardDeckServiceImpl cardDeckService,
+    public StyleGroupServiceImpl(StyleGroupRepository styleGroupRepository, UserAdminService userAdminService, @Lazy CardDeckServiceImpl cardDeckService,
                                  ItemServiceImpl itemService, UserItemCacheServiceImpl userItemCacheService, TagServiceImpl tagService) {
         this.styleGroupRepository = styleGroupRepository;
-        this.userService = userService;
+        this.userAdminService = userAdminService;
         this.cardDeckService = cardDeckService;
         this.itemService = itemService;
         this.userItemCacheService = userItemCacheService;
@@ -60,21 +60,16 @@ public class StyleGroupServiceImpl implements StyleGroupService {
 
     @Override
     public void updateStyleGroup() {
-        List<User> userList = userService.userList();
+        List<User> userList = userAdminService.getUsers();
         UserItemCacheReq userItemCacheReq = userItemCacheService.getUserItemCacheReq();
 
         List<StyleGroup> styleGroupList = userList.stream()
-                .filter(user -> cardDeckService.tutorialYn(user.getId()))
                 .map(user -> {
                     int userId = user.getId();
 
                     List<SwipeLog> swipeLogList = userItemCacheService.swipeLogList(String.valueOf(userId));
 
-                    List<Tag> tagList = tagService
-                            .getTagList()
-                            .stream()
-                            .filter(tag -> tag.getRepVec() != null && tag.getRepVec().size() > 0)
-                            .collect(Collectors.toList());
+                    List<Tag> tagList = tagService.getTagList();
 
                     if(tagList.size() > 0 ){
                     }
@@ -91,7 +86,7 @@ public class StyleGroupServiceImpl implements StyleGroupService {
         styleGroupRepository.saveAll(styleGroupList);
     }
     public StyleGroup styleGroupByUserId(int userId) {
-        return styleGroupRepository.findById(userId).get();
+        return styleGroupRepository.findById(userId).orElse(null);
     }
 
     public List<StyleGroup> styleGroupList() {

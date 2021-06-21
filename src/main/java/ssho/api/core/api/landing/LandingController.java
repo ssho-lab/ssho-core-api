@@ -1,6 +1,7 @@
 package ssho.api.core.api.landing;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ssho.api.core.domain.landing.res.LandingRes;
 import ssho.api.core.service.landing.LandingServiceImpl;
@@ -8,10 +9,11 @@ import ssho.api.core.util.auth.Auth;
 
 import javax.servlet.http.HttpServletRequest;
 
+@RequestMapping("/landing")
 @RestController
 public class LandingController {
 
-    private LandingServiceImpl landingService;
+    private final LandingServiceImpl landingService;
 
     public LandingController(LandingServiceImpl landingService) {
         this.landingService = landingService;

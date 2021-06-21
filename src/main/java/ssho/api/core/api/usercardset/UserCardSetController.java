@@ -17,17 +17,31 @@ public class UserCardSetController {
         this.userCardSetService = userCardSetService;
     }
 
+    /**
+     * 최근 회원 카드셋 조회
+     *
+     * @param httpServletRequest
+     * @return
+     */
     @Auth
     @GetMapping("")
-    UserCardSet getRecentUserCardSet(final HttpServletRequest httpServletRequest) {
-        final String userId = String.valueOf(httpServletRequest.getAttribute("userId"));
-        return userCardSetService.getRecentByUserId(Integer.parseInt(userId));
+    public UserCardSet getRecentUserCardSet(final HttpServletRequest httpServletRequest) {
+        final int userId = Integer.parseInt(String.valueOf(httpServletRequest.getAttribute("userId")));
+        return userCardSetService.getRecentByUserId(userId);
     }
 
+    /**
+     * 회원 카드셋 저장
+     *
+     * @param userCardSet
+     * @param httpServletRequest
+     * @return
+     */
     @Auth
     @PostMapping("")
-    UserCardSet save(@RequestBody UserCardSet userCardSet, final HttpServletRequest httpServletRequest) {
-        userCardSet.setUserId(Integer.parseInt(String.valueOf(httpServletRequest.getAttribute("userId"))));
+    public UserCardSet save(@RequestBody UserCardSet userCardSet, final HttpServletRequest httpServletRequest) {
+        final int userId = Integer.parseInt(String.valueOf(httpServletRequest.getAttribute("userId")));
+        userCardSet.setUserId(userId);
         return userCardSetService.save(userCardSet);
     }
 }

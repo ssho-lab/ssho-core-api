@@ -117,8 +117,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public List<User> userList() {
-        return userRepository.findAll().stream().peek(user -> user.setPassword("")).collect(Collectors.toList());
+    public User getUserById(int userId) {
+        User user = userRepository.findById(userId).orElseGet(User::new);
+        user.setPassword("");
+        return user;
     }
 
     public int authorization(final String jwt) {

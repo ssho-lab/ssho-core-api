@@ -15,8 +15,4 @@ public interface CardDeckService {
      * @throws IOException
      */
     CardDeck cardDeckByUserId(int userId);
-
-    Boolean tutorialYn(int userId);
-
-    List<String> swipedTutorialItemIdList(int userId);
 }

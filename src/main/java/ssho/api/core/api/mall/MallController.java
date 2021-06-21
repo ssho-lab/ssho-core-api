@@ -11,7 +11,7 @@ import java.util.List;
 @RestController
 public class MallController {
 
-    private MallServiceImpl mallService;
+    private final MallServiceImpl mallService;
 
     public MallController(MallServiceImpl mallService) {
         this.mallService = mallService;

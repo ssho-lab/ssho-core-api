@@ -2,7 +2,6 @@ package ssho.api.core.service.tagitemcache;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -10,17 +9,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.springframework.stereotype.Service;
 import ssho.api.core.domain.item.Item;
 import ssho.api.core.domain.stylegroup.StyleGroup;
-import ssho.api.core.domain.swipelog.model.SwipeLog;
 import ssho.api.core.domain.tagitemcache.TagItemCache;
 import ssho.api.core.domain.tagset.TagSet;
-import ssho.api.core.domain.useritemcache.UserItem;
-import ssho.api.core.domain.useritemcache.UserItemCache;
 import ssho.api.core.service.item.ItemServiceImpl;
 import ssho.api.core.service.stylegroup.StyleGroupServiceImpl;
 import ssho.api.core.service.tag.TagServiceImpl;
+import ssho.api.core.service.tag.TagSetServiceImpl;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -31,15 +27,17 @@ public class TagItemCacheServiceImpl implements TagItemCacheService {
 
     private final StyleGroupServiceImpl styleGroupService;
     private final TagServiceImpl tagService;
+    private final TagSetServiceImpl tagSetService;
     private final ItemServiceImpl itemService;
     private final RestHighLevelClient restHighLevelClient;
     private final ObjectMapper objectMapper;
 
     private String TAG_ITEM_CACHE_INDEX = "cache-tagitem";
 
-    public TagItemCacheServiceImpl(StyleGroupServiceImpl styleGroupService, TagServiceImpl tagService, ItemServiceImpl itemService, RestHighLevelClient restHighLevelClient, ObjectMapper objectMapper) {
+    public TagItemCacheServiceImpl(StyleGroupServiceImpl styleGroupService, TagServiceImpl tagService, TagSetServiceImpl tagSetService, ItemServiceImpl itemService, RestHighLevelClient restHighLevelClient, ObjectMapper objectMapper) {
         this.styleGroupService = styleGroupService;
         this.tagService = tagService;
+        this.tagSetService = tagSetService;
         this.itemService = itemService;
         this.restHighLevelClient = restHighLevelClient;
         this.objectMapper = objectMapper;
@@ -71,7 +69,7 @@ public class TagItemCacheServiceImpl implements TagItemCacheService {
     }
 
     private List<Item> styleGroupItemList(String tagId) throws IOException {
-        List<TagSet> tagSetList = tagService.getTagSetListById(tagId);
+        List<TagSet> tagSetList = tagSetService.getTagSetListById(tagId);
         double rateSum = tagSetList.stream().map(TagSet::getRate).mapToDouble(r -> r).sum();
 
         List<Item> itemList = tagSetList.stream().map(tagSet -> {
@@ -79,7 +77,6 @@ public class TagItemCacheServiceImpl implements TagItemCacheService {
             String tagBId = tagSet.getTagB().getId();
 
             List<Item> tagItemList = itemService.getItemsByTagId(tagBId);
-            //Collections.shuffle(tagItemList);
 
             return tagItemList.subList(0, (int) (20 * rate));
 

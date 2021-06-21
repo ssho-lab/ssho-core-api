@@ -21,8 +21,10 @@ public class ShoppingBagController {
     }
 
     /**
-     * 회원별 쇼핑백 조회
-     * @return List<Item>
+     * 회원 쇼핑백 조회
+     *
+     * @param httpServletRequest
+     * @return
      */
     @Auth
     @GetMapping("")

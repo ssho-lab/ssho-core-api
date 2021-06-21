@@ -1,7 +1,5 @@
 package ssho.api.core.service.shoppingbag;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -21,57 +19,50 @@ import java.util.stream.Collectors;
 @Service
 public class ShoppingBagServiceImpl implements ShoppingBagService {
 
-    private  WebClient webClient;
-    private final RestHighLevelClient restHighLevelClient;
-    private final ObjectMapper objectMapper;
-    private ItemServiceImpl itemService;
-    private UserCardSetServiceImpl userCardSetService;
+    private WebClient webClient;
+    private final ItemServiceImpl itemService;
+    private final UserCardSetServiceImpl userCardSetService;
 
     @Value("${log.api.host}")
     private String LOG_API_HOST;
 
-    private final String ITEM_RT_INDEX ="item-rt";
-
-    public ShoppingBagServiceImpl(final RestHighLevelClient restHighLevelClient, final ObjectMapper objectMapper, final ItemServiceImpl itemService, final UserCardSetServiceImpl userCardSetService) {
-        this.restHighLevelClient = restHighLevelClient;
-        this.objectMapper = objectMapper;
+    public ShoppingBagServiceImpl(ItemServiceImpl itemService, UserCardSetServiceImpl userCardSetService) {
         this.itemService = itemService;
         this.userCardSetService = userCardSetService;
+        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).build();
     }
 
     @Override
-    public List<ShoppingBagCardSet> getShoppingBagCardSetListByUserId(final String userId){
+    public List<ShoppingBagCardSet> getShoppingBagCardSetListByUserId(final String userId) {
 
         List<ShoppingBagCardSet> shoppingBagCardSetList = new ArrayList<>();
 
-        this.webClient = WebClient.builder().baseUrl(LOG_API_HOST).build();
+        // Key: 회원 고유 번호
+        // Value: 스와이프 로그 리스트
+        Map<Integer, List<SwipeLog>> groupedSwipeLogList = webClient
+                .get()
+                .uri("/log/swipe/user/like/grouped?userId={userId}", userId)
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Map<Integer, List<SwipeLog>>>() {
+                })
+                .block();
 
-        final Map<Integer, List<SwipeLog>> groupedSwipeLogList =
-                webClient
-                        .get().uri("/log/swipe/user/like/grouped?userId={userId}", userId)
-                        .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<Map<Integer, List<SwipeLog>>>() {})
-                        .block();
+        if (groupedSwipeLogList != null && groupedSwipeLogList.size() > 0) {
 
-        if(groupedSwipeLogList != null) {
-
-            // 스와이프 로그 이력이 없을 경우
-            if(groupedSwipeLogList.size() == 0) {
-                return shoppingBagCardSetList;
-            }
-
-            for(Map.Entry<Integer, List<SwipeLog>> entry : groupedSwipeLogList.entrySet()){
+            for (Map.Entry<Integer, List<SwipeLog>> entry : groupedSwipeLogList.entrySet()) {
 
                 ShoppingBagCardSet shoppingBagCardSet = new ShoppingBagCardSet();
                 List<SwipeLog> swipeLogList = entry.getValue();
 
-                if(swipeLogList.size() == 0){
+                if (swipeLogList.size() == 0) {
                     continue;
                 }
 
-                UserCardSet userCardSet = userCardSetService.getById(swipeLogList.get(0).getUserCardSetId());
+                SwipeLog firstLog = swipeLogList.get(0);
 
-                if(userCardSet.equals(new UserCardSet()) || userCardSet.getCreateTime() == null){
+                UserCardSet userCardSet = userCardSetService.getById(firstLog.getUserCardSetId());
+
+                if (userCardSet.equals(new UserCardSet()) || userCardSet.getCreateTime() == null) {
                     continue;
                 }
 
@@ -81,7 +72,7 @@ public class ShoppingBagServiceImpl implements ShoppingBagService {
                         .collect(Collectors.toList());
 
                 shoppingBagCardSet.setItemList(itemList);
-                shoppingBagCardSet.setUserCardSet(userCardSetService.getById(swipeLogList.get(0).getUserCardSetId()));
+                shoppingBagCardSet.setUserCardSet(userCardSetService.getById(firstLog.getUserCardSetId()));
 
                 shoppingBagCardSetList.add(shoppingBagCardSet);
             }

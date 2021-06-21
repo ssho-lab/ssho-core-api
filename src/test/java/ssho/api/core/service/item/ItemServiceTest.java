@@ -12,6 +12,6 @@ public class ItemServiceTest {
 
     @Test
     void addImageVec(){
-        itemService.addImageVec();
+//        itemService.addImageVec();
     }
 }

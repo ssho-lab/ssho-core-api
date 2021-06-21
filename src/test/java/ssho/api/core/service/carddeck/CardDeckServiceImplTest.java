@@ -14,7 +14,7 @@ public class CardDeckServiceImplTest {
 
     @Test
     void cardDeckByUserId() {
-        int userId = 5;
+        int userId = 72;
         CardDeck cardDeck = cardDeckService.cardDeckByUserId(userId);
         log.info(cardDeck.toString());
     }

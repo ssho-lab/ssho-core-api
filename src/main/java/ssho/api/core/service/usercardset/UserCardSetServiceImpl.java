@@ -7,7 +7,7 @@ import ssho.api.core.repository.usercardset.UserCardSetRepository;
 @Service
 public class UserCardSetServiceImpl implements UserCardSetService {
 
-    private UserCardSetRepository userCardSetRepository;
+    private final UserCardSetRepository userCardSetRepository;
 
     public UserCardSetServiceImpl(UserCardSetRepository userCardSetRepository) {
         this.userCardSetRepository = userCardSetRepository;

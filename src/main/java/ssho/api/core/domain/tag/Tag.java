@@ -2,8 +2,6 @@ package ssho.api.core.domain.tag;
 
 import lombok.*;
 
-import java.util.List;
-
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
@@ -15,5 +13,5 @@ public class Tag {
     private String name;
     private String description;
     private String imageUrl;
-    private List<Double> repVec;
+    private boolean isActive;
 }

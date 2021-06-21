@@ -23,6 +23,8 @@ public interface MallService {
      */
     Mall getMallById(String itemId) throws IOException;
 
+    List<Mall> getMallListByTagId(String tagId);
+
     /**
      * 몰 전체 저장
      *

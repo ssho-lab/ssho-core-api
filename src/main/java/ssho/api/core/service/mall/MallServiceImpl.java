@@ -14,6 +14,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.springframework.stereotype.Service;
 import ssho.api.core.domain.mall.model.Mall;
+import ssho.api.core.domain.tag.Tag;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,11 +28,11 @@ public class MallServiceImpl implements MallService {
     private final RestHighLevelClient restHighLevelClient;
     private final ObjectMapper objectMapper;
 
-    private final String MALL_INDEX = "mall";
+    private final String MALL_INDEX = "mall-v1";
     private final Integer SEARCH_SIZE = 1000;
 
     public MallServiceImpl(final RestHighLevelClient restHighLevelClient,
-                          final ObjectMapper objectMapper) {
+                           final ObjectMapper objectMapper) {
         this.restHighLevelClient = restHighLevelClient;
         this.objectMapper = objectMapper;
     }
@@ -70,6 +71,14 @@ public class MallServiceImpl implements MallService {
         GetRequest getRequest = new GetRequest(MALL_INDEX, mallId);
         GetResponse getResponse = restHighLevelClient.get(getRequest, RequestOptions.DEFAULT);
         return objectMapper.readValue(getResponse.getSourceAsString(), Mall.class);
+    }
+
+    @Override
+    public List<Mall> getMallListByTagId(String tagId) {
+        return getMallList()
+                .stream()
+                .filter(mall -> mall.getTagList().stream().map(Tag::getId).collect(Collectors.toList()).contains(tagId))
+                .collect(Collectors.toList());
     }
 
     @Override

@@ -20,5 +20,5 @@ public interface UserService {
 
     boolean checkEmailRegistered(final String email);
 
-    List<User> userList();
+    User getUserById(int userId);
 }

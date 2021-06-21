@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 import ssho.api.core.domain.tag.Tag;
 import ssho.api.core.domain.tagset.TagSet;
 import ssho.api.core.service.tag.TagServiceImpl;
+import ssho.api.core.service.tag.TagSetServiceImpl;
 
 import java.io.IOException;
 import java.util.List;
@@ -15,9 +16,11 @@ import java.util.List;
 public class TagController {
 
     private final TagServiceImpl tagService;
+    private final TagSetServiceImpl tagSetService;
 
-    public TagController(final TagServiceImpl tagService) {
+    public TagController(TagServiceImpl tagService, TagSetServiceImpl tagSetService) {
         this.tagService = tagService;
+        this.tagSetService = tagSetService;
     }
 
     /**
@@ -46,7 +49,7 @@ public class TagController {
      */
     @PostMapping("/set")
     public void saveTagSet(@RequestBody TagSet tagSet) throws IOException {
-        tagService.saveTagSet(tagSet);
+        tagSetService.saveTagSet(tagSet);
     }
 
     /**
@@ -56,7 +59,7 @@ public class TagController {
      */
     @GetMapping("/set")
     public void getTagSet(@RequestBody TagSet tagSet) throws IOException {
-        tagService.getTagSet(tagSet);
+        tagSetService.getTagSet(tagSet);
     }
 }
 

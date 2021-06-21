@@ -9,5 +9,4 @@ import java.util.List;
 public class CardDeck {
     private int userId;
     private List<Item> itemList;
-    private boolean tutorial;
 }
